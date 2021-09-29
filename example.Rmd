@@ -1,0 +1,192 @@
+---
+title: "Spatial Randomization Tutorial"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    keep_tex: yes
+  word_document: default
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+```
+
+This is a simple worked example showing how a one line command for spatial noise randomization works, and how it may be used as a simple robustness check on the reliability of Mueller-Watson corrections.
+
+First load the necessary `R` libraries and the randomization code.
+
+```{r, message=FALSE}
+
+library(spdep)
+library(estimatr)
+library(fields)
+library(foreign)
+library(tidyverse)
+
+source('randomize.R')
+
+```
+
+The code and data for this example can be found at https://github.com/morganwkelly/persistence
+
+
+Remember:
+
+1. There can be no missing values.
+
+2. Longitude and latitude *must* be called `X` and `Y`.
+
+
+
+
+
+Load data in Stata format.
+
+```{r load, cache=TRUE}
+study=read.dta("example.dta")
+
+```
+
+
+Now write out the formula that you want to estimate, which we will call `frml`. The main explanatory variable of interest should be first. 
+
+
+
+```{r eqn_1, cache=TRUE}
+frml="share_ind_work1901 ~ share_refractory + lnpop1901 + lnproto_ind + 
+mean_lnprec + mean_lntemp" 
+```
+
+
+Regressions using spatial data should always have controls for spatial trends. This equation does not so the chances are that it is severely misspecified.
+
+
+
+# Randomization
+
+Now we calculate randomized significance based on the explanatory variable. You must specify a search range in kilometres beyond which correlation becomes negligible. It is best to start with a wide range with large jumps between values to tie down the approximate value, and then re-estimate closer to it. The range values do not need to be very exact. If your values are too high or low you will get a warning. 
+
+The default kappa or smoothness of 0.5 gives an exponential falloff which is empirically realistic. You can increase this in increments of 0.5 and check how the likelihood changes but in practice values in the range 0.5 to 1.5 return very similar values.
+
+In this case we will run only 2000 simulations: this is usually enough in practice to give to fairly accurate results, but you will need about 10,000 if you want nice looking randomization distribution plots. Here we are searching over a range from 400 to 1000 km
+
+```{r rand_x, cache=TRUE}
+x_rand=x_randomize(study,
+                   frm=frml,
+                   Range_Search=seq(400,1000,by=10),
+                   kappa=0.5,
+                   nSim=2000)
+
+
+```
+
+The output is here.
+
+
+
+
+```{r rand_params, cache=TRUE}
+
+round(x_rand$Output_x[1:3],2)
+
+```
+
+First we have the randomized significance: the fraction of simulations where the t value on the noise variable was more extreme than the original t value of -3.5. In this case it is 0.37 compared with an original significance level of 0.001.
+
+Next there is information on the spatial structure of the data.
+
+```{r spat_params, cache=TRUE}
+
+round(x_rand$Output_x[4:9],2)
+
+```
+
+
+1. Directional R2 tells how much of the orthogonalized explanatory variable is explained by a quadratic in longitude and latitude. For a properly specified model this should be zero. The value of 0.23 here suggests that the explanatory variable is acting as a proxy for omitted directional trends.
+
+2. Effective range (where correlation between points has fallen to 0.14) is large. It is 940 km which is the approximate distance across the study range.
+
+3. Spatial structure of 0.87 is high: most variables lie close to the predicted spatial surface with little idiosyncratic variation.
+
+4. Kappa gives the smoothness parameter used, which here is the default exponential.
+
+5. The Moran statistic, which has an asymptotic Gaussian distribution, is 5.6 suggesting strong spatial correlation in the regression residuals. Remember it should be seen as a rough indicator of the strength of spatial correlation, not a yes-no test of whether it is present.
+
+6. Finally there is the likelihood of the spatial parameter estimates.
+
+We can now repeat the process for the dependent variable. 
+
+```{r rand_y, cache=TRUE}
+y_rand=y_randomize(study,
+                   frm=frml,
+                   Range_Search=seq(100,400,by=10),
+                   kappa=0.5,
+                   nSim=2000)
+
+round(y_rand$Output_y,2)
+```
+
+It can again be seen that the orthogonalized dependent variable has substantial structure and is strongly explained by quadratic longitude and latitude. The randomized `p` value is larger in this case than with the explanatory variable.
+
+
+## Spatial Trend Controls
+
+Now we consider what happens if we add longitude and latitude to our regression as a control for omitted variables.
+
+```{r eqn_2, cache=TRUE}
+frml_trend="share_ind_work1901~share_refractory+lnpop1901+lnproto_ind+
+mean_lnprec+mean_lntemp+X+Y" 
+
+```
+We can repeat the randomization of the explanatory variable.
+
+```{r rand_x_trend, cache=TRUE}
+x_rand_trend=x_randomize(study,frm=frml_trend,
+                   Range_Search=seq(400,1000,by=10),
+                   kappa=0.5,nSim=2000)
+
+round(x_rand_trend$Output_x,2)
+
+
+```
+Having controlled for spatial trends, the randomized significance of 0.69 is now similar to the nominal significance of 0.63. At the same time, the Moran statistic has fallen to 1.8.
+
+# Mueller-Watson Significance
+Now we can compare these randomization results with Mueller-Watson significance levels as a way of testing the robustness of the latter. Note that to run the `scpc` adjustment in Stata requires that longitude and latitude be called `s_1` and `s_2` respectively.
+
+## Ignoring Spatial Trends
+
+To begin we ignore spatial trends and use the default average covariance value of 0.03. It can be seen that the significance level here is 0.03, very different from the 0.37 estimated earlier. This is a warning that Mueller-Watson significance levels are not to be trusted here.
+
+![Mueller-Watson significance without controlling for trends, and applying a default average correlation of 0.03 is 0.03. This is far from the randomized value of 0.38 suggesting that the standard error correction is not reliable here.](mw_03.png)
+
+The problem here with Mueller-Watson is that because the regression excludes strong spatial trends, the average correlation is under-estimated but also meaningless.
+
+We can also compute the average correlation between regression residuals as an input to Mueller-Watson estimation.
+
+```{r MW_corr, cache=TRUE}
+
+mw=avg_correlation(study,
+                      frm=frml,
+                      Range_Search=seq(100,400,by=10))
+round(mw,3)
+```
+This is a large value, again indicating that the data has strong directional trends that have not been controlled for. Applying this  value gives a significance of 0.08. Again, however this is considerably below the more conservative randomized level, suggesting that there are still specification issues.
+
+![Mueller-Watson significance without controlling for trends, but applying an average correlation of 0.10 is 0.08, again a long way from the more conservative randomized value.](mw_10.png)
+
+## Controlling for Spatial Trends
+Finally, we can apply Mueller-Watson adding longitude and latitude to control for spatial trends. In that case, the average correlation between residuals is 0.03.
+```{r MW_corr_trend, cache=TRUE}
+
+round(avg_correlation(study,frm=frml_trend,Range_Search=seq(100,400,by=10)),3)
+
+```
+
+![Mueller-Watson significance after controlling for trends is 0.73, close to the randomized value of 0.70](mw_trend_03.png)
+
+Significance is now close to the randomized one suggesting that the adjustments are reliable.
