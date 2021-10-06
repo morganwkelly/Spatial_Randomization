@@ -55,7 +55,7 @@ x_randomize=function(study,frm,Range_Search,poly_degree=2,kappa=0.5,
     explan_var=frm_spl[[1]][2]
     rhs_vars=""
   }
-  
+  study=as.data.frame(study)
   study=study %>% mutate(dep_var=study[,dep_var],explan_var=study[,explan_var])
   
   
@@ -78,8 +78,10 @@ x_randomize=function(study,frm,Range_Search,poly_degree=2,kappa=0.5,
   p_orig=rob_sum$coef[2,4]
   
   ############orthog variable
-
-  lm_res=lm(explan_var~poly(abs_Y1,poly_degree)+poly(X1,poly_degree),data=study)
+  lm_orthog=lm(fm_orthog,data=study)
+  explan_orthog=lm_orthog$residuals
+  
+  lm_res=lm(explan_orthog~poly(abs_Y1,poly_degree)+poly(X1,poly_degree),data=study)
   summary(lm_res)
   Residuals=lm_res$residuals
   direction_R2=summary(lm_res)$r.squared  #explan power of spatial direction
@@ -163,7 +165,7 @@ y_randomize=function(study,frm,Range_Search,
     explan_var=frm_spl[[1]][2]
     rhs_vars=""
   }
-  
+  study=as.data.frame(study)
   study=study %>% mutate(dep_var=study[,dep_var],explan_var=study[,explan_var])
   
   ################################################################
