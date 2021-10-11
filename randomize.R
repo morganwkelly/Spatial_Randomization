@@ -284,6 +284,7 @@ avg_correlation=function(study,frm,kappa=0.5,Range_Search,
     rhs_vars=""
   }
   
+  study=as.data.frame(study)
   study=study %>% mutate(dep_var=study[,dep_var],explan_var=study[,explan_var])
   
   ################################################################
@@ -295,16 +296,21 @@ avg_correlation=function(study,frm,kappa=0.5,Range_Search,
   
   
   ##original ols formulae 
-  Residuals=lm(fm_ols,study)$residuals
+  lm1=lm(fm_ols,study)
   
-  Residuals[Residuals<lower_cutoff]=lower_cutoff
-  Residuals[Residuals>upper_cutoff]=upper_cutoff
+  ##original ols formulae 
+  resids=lm1$residuals
+  x1=study$explan_var
+  beta1=lm1$coefficients[2]
+  
+  Y=beta1+x1*resids/mean(x1^2)   #explan var for MW
+
   
   #############Correlation parameters
-  resids=scale(Residuals)
+  Y=scale(Y)
   Coords=study %>% dplyr::select(X,Y) %>% as.matrix()
   Range_Search=Range_Search/(1.6*sqrt(8*kappa))   #convert to kilometres and turn effective range into range
-  res_params=kriging_search(resids,Coords,range_search=Range_Search,kappa=kappa)
+  res_params=kriging_search(Y,Coords,range_search=Range_Search,kappa=kappa)
   Range=as.numeric(res_params$Range)
   Structure=as.numeric(res_params$Structure)  #this is weight rho between systematic correlation and spatial noise
   
