@@ -17,6 +17,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This is a simple worked example showing how a one line command for spatial noise randomization works, and how it may be used as a simple robustness check on the reliability of Mueller-Watson corrections.
 
+The data and code are available at https://github.com/morganwkelly/Spatial_Randomization.
+
 First load the necessary `R` libraries and the randomization code.
 
 ```{r, message=FALSE}
@@ -77,7 +79,7 @@ In this case we will run only 2000 simulations: this is usually enough in practi
 ```{r rand_x, cache=TRUE}
 x_rand=x_randomize(study,
                    frm=frml,
-                   Range_Search=seq(400,1000,by=10),
+                   Range_Search=seq(40,1000,by=20),
                    kappa=0.5,
                    nSim=2000)
 
@@ -91,7 +93,7 @@ The output is here.
 
 ```{r rand_params, cache=TRUE}
 
-round(x_rand$Output_x[1:3],2)
+round(x_rand$Output_x[2:4],2)
 
 ```
 
@@ -101,7 +103,7 @@ Next there is information on the spatial structure of the data.
 
 ```{r spat_params, cache=TRUE}
 
-round(x_rand$Output_x[4:9],2)
+round(x_rand$Output_x[-(1:4)],2)
 
 ```
 
@@ -127,7 +129,7 @@ y_rand=y_randomize(study,
                    kappa=0.5,
                    nSim=2000)
 
-round(y_rand$Output_y,2)
+round(y_rand$Output_y[-1],2)
 ```
 
 It can again be seen that the orthogonalized dependent variable has substantial structure and is strongly explained by quadratic longitude and latitude. The randomized `p` value is larger in this case than with the explanatory variable.
@@ -149,44 +151,10 @@ x_rand_trend=x_randomize(study,frm=frml_trend,
                    Range_Search=seq(400,1000,by=10),
                    kappa=0.5,nSim=2000)
 
-round(x_rand_trend$Output_x,2)
+round(x_rand_trend$Output_x[-1],2)
 
 
 ```
-Having controlled for spatial trends, the randomized significance of 0.69 is now similar to the nominal significance of 0.63. At the same time, the Moran statistic has fallen to 1.8.
+Having controlled for spatial trends, the randomized significance of 0.69 is now similar to the nominal significance of 0.63. At the same time, the Moran significance is 0.04
 
-# Mueller-Watson Significance
-Now we can compare these randomization results with Mueller-Watson significance levels as a way of testing the robustness of the latter. Note that to run the `scpc` adjustment in Stata requires that longitude and latitude be called `s_1` and `s_2` respectively.
 
-## Ignoring Spatial Trends
-
-To begin we ignore spatial trends and use the default average covariance value of 0.03. It can be seen that the significance level here is 0.03, very different from the 0.37 estimated earlier. This is a warning that Mueller-Watson significance levels are not to be trusted here.
-
-![Mueller-Watson significance without controlling for trends, and applying a default average correlation of 0.03 is 0.03. This is far from the randomized value of 0.38 suggesting that the standard error correction is not reliable here.](mw_03.png)
-
-The problem here with Mueller-Watson is that because the regression excludes strong spatial trends, the average correlation is under-estimated but also meaningless.
-
-We can also compute the average correlation between regression residuals as an input to Mueller-Watson estimation.
-
-```{r MW_corr, cache=TRUE}
-
-mw=avg_correlation(study,
-                      frm=frml,
-                      Range_Search=seq(100,400,by=10))
-round(mw,3)
-```
-This is a large value, again indicating that the data has strong directional trends that have not been controlled for. Applying this  value gives a significance of 0.08. Again, however this is considerably below the more conservative randomized level, suggesting that there are still specification issues.
-
-![Mueller-Watson significance without controlling for trends, but applying an average correlation of 0.10 is 0.08, again a long way from the more conservative randomized value.](mw_10.png)
-
-## Controlling for Spatial Trends
-Finally, we can apply Mueller-Watson adding longitude and latitude to control for spatial trends. In that case, the average correlation between residuals is 0.03.
-```{r MW_corr_trend, cache=TRUE}
-
-round(avg_correlation(study,frm=frml_trend,Range_Search=seq(100,400,by=10)),3)
-
-```
-
-![Mueller-Watson significance after controlling for trends is 0.73, close to the randomized value of 0.70](mw_trend_03.png)
-
-Significance is now close to the randomized one suggesting that the adjustments are reliable.
