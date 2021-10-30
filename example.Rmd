@@ -1,10 +1,10 @@
 ---
 title: "Spatial Randomization Tutorial"
 output:
-  html_document:
-    df_print: paged
   pdf_document:
     keep_tex: yes
+  html_document:
+    df_print: paged
   word_document: default
 fontsize: 12pt
 ---
@@ -74,11 +74,14 @@ Now we calculate randomized significance based on the explanatory variable. You 
 
 The default kappa or smoothness of 0.5 gives an exponential falloff which is empirically realistic. You can increase this in increments of 0.5 and check how the likelihood changes but in practice values in the range 0.5 to 1.5 return very similar values.
 
-In this case we will run only 2000 simulations: this is usually enough in practice to give to fairly accurate results, but you will need about 10,000 if you want nice looking randomization distribution plots. Here we are searching over a range from 400 to 1000 km
+In this case we will run only 2000 simulations: this is usually enough in practice to give to fairly accurate results, but you will need about 10,000 if you want nice looking randomization distribution plots. Here we are searching over a range from 40 to 1000 km
+
+`var_num` is the position of the variable in the equation that you want to test. In our case we are looking at variable 1 `share_refractory`.
 
 ```{r rand_x, cache=TRUE}
 x_rand=x_randomize(study,
                    frm=frml,
+                   var_num=1,
                    Range_Search=seq(40,1000,by=20),
                    kappa=0.5,
                    nSim=2000)
@@ -119,6 +122,15 @@ round(x_rand$Output_x[-(1:4)],2)
 5. The Moran statistic, which has an asymptotic Gaussian distribution, is 5.6 suggesting strong spatial correlation in the regression residuals. Remember it should be seen as a rough indicator of the strength of spatial correlation, not a yes-no test of whether it is present.
 
 6. Finally there is the likelihood of the spatial parameter estimates.
+
+We can draw the null randomization distribution of t statistics from these simulated values. The red lines are the estimated t value, and the significance level is the area beyond these.
+
+
+
+`````{r density_1, cache=TRUE,fig.width=4,fig.cap="Null randomization distribution of t statistic. red lines are the estimated t value.",fig.asp=1}
+draw_histogram(x_rand)
+
+```
 
 We can now repeat the process for the dependent variable. 
 

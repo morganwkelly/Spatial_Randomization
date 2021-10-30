@@ -133,28 +133,28 @@ x_randomize=function(study,frm,var_num=1,Range_Search,poly_degree=2,kappa=0.5,
   
   se_exact=abs(coef_orig/qnorm(p_exact/2))  #implicit SE
  
-  Output_x=data.frame(
+  Output=data.frame(
     explan_var,
-    p_exact_x=p_exact,
+    p_exact=p_exact,
     p_orig,
     t_orig=abs(t_orig),
     coefficient=coef_orig,
-    se_exact_x=se_exact,
+    se_exact=se_exact,
     se_orig,
     R2,
     N=nrow(study),
-    direction_R2_x=direction_R2,
-    Effective_Range_x=res_params$Effective_Range,
-    Structure_x=Structure,
-    kappa_x=kappa,
+    direction_R2=direction_R2,
+    Effective_Range=res_params$Effective_Range,
+    Structure=Structure,
+    kappa=kappa,
     Moran_p,
-    Likelihood_x=res_params$Likelihood,
-    df_x=res_params$df
+    Likelihood=res_params$Likelihood,
+    df=res_params$df
   )
   
-  return(list(Output_x=Output_x,
+  return(list(Output=Output,
               Residuals=Residuals,
-              t_noise_x=sim_res$t_noise))
+              t_noise=sim_res$t_noise))
 }
 
 y_randomize=function(study,frm,Range_Search,var_num=1,
@@ -259,87 +259,63 @@ y_randomize=function(study,frm,Range_Search,var_num=1,
   
   se_exact=abs(coef_orig/qnorm(p_exact/2))  #implicit SE
 
-  Output_y=data.frame(
+  Output=data.frame(
     explan_var,
-    p_exact_y=p_exact,
+    p_exact=p_exact,
     p_orig,
     t_orig=abs(t_orig),
     coefficient=coef_orig,
-    se_exact_y=se_exact,
+    se_exact=se_exact,
     se_orig,
     R2,
     N=nrow(study),
-    direction_R2_y=direction_R2,
-    Effective_Range_y=res_params$Effective_Range,
-    Structure_y=Structure,
-    kappa_y=kappa,
+    direction_R2=direction_R2,
+    Effective_Range=res_params$Effective_Range,
+    Structure=Structure,
+    kappa=kappa,
     Moran_p,
-    Likelihood_y=res_params$Likelihood,
-    df_y=res_params$df
+    Likelihood=res_params$Likelihood,
+    df=res_params$df
   )
   
-  return(list(Output_y=Output_y,
+  return(list(Output=Output,
               Residuals=Residuals,
-              t_noise_y=sim_res$t_noise)
+              t_noise=sim_res$t_noise)
          )
 }
 
 
-
-randomized_crit_vals=function(study,frm,N_vars,range,sims=1000){
-########make table of randomized values  
-  out_x=list()
-  out_y=list()
+draw_histogram=function(out_rand){
+  ##automatically draw randimization distribution for output out_rand from
+  ##x_randomize or y_randomize
   
-  for (i in 1:N_vars){
-    n_var=i
-    x_1=x_randomize(study,frm,var_num=n_var,
-                    Range_Search=range,poly_degree=2,kappa=0.5,nSim=sims)
-    x_output=x_1$Output_x
-    out_x[[i]]=x_output
-    
-    y_1=y_randomize(study,frm,var_num=n_var,
-                    Range_Search=range,poly_degree=2,kappa=0.5,nSim=sims)
-    y_output=y_1$Output_y
-    #y_output$MW_Corr=NA    #avg_correlation(study,frm,var_num=n_var,Range_Search=range)
-    out_y[[i]]=y_output
-  }
+  sim_res=data.frame(t_noise=out_rand$t_noise)
+  t_orig=out_rand$Output$t_orig
   
-  out_x=plyr::ldply(out_x)
-  out_y=plyr::ldply(out_y)
-  return(list(x=out_x,y=out_y))
+  sim_res=sim_res%>% mutate(t_round=round(t_noise,1)) 
+  
+  
+  g1=ggplot() +
+    xlim(min(sim_res$t_round)-0.2,max(sim_res$t_round)+0.2)+
+    theme_bw(base_size = 14) + 
+    geom_histogram(data=sim_res,aes(x=t_round),binwidth=0.1,fill="lightgrey",colour="grey")+
+    geom_vline(xintercept = t_orig,colour="red",size=0.1)+
+    geom_vline(xintercept = -t_orig,colour="red",size=0.1)+
+    labs(x="",y="")+
+    theme(axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.text=element_text(size=8))+
+    theme(aspect.ratio=1)+
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.margin = margin(-2.5, 2.9, -2.5, 2.9),
+    )
+  
+  return(g1)
+  
 }
-
-make_model=function(eqn,rand_est){
-  # Generate model summary output for randomized results for modelsummary
-  # eqn is estimated eqn
-  # rand_est is return from randomize summary
-  a1=str_replace_all(c(eqn),"\\+",",")
-  a2=str_split(a1,"\\~")[[1]][2]
-  a3=str_split(a2,",")[[1]]
-  a3=a3[1:nrow(rand_est$x)]
-  
-  ti <- data.frame(
-    term = a3,
-    estimate = rand_est[[1]]$coefficient,
-    std.error=rand_est[[1]]$se_orig,
-    random.std.error = apply(cbind(rand_est[[1]]$se_exact_x,rand_est[[2]]$se_exact_y,    #include original SE in case exact p=0
-                            rand_est[[1]]$se_orig),
-                      1,max)
-  )
-  
-  gl <- data.frame(
-    N=rand_est[[1]]$N[1],
-    R2=rand_est[[1]]$R2[1],
-    Moran_p = rand_est[[1]]$Moran[1])
-  
-  mod <- list(
-    tidy = ti,
-    glance = gl)
-  class(mod) <- "modelsummary_list"
-  return(mod)
-}
-
 
 iv_randomize=function(study,frm,Range_Search,var_num=1,
                       poly_degree=2,kappa=0.5,
@@ -490,57 +466,4 @@ iv_randomize=function(study,frm,Range_Search,var_num=1,
               t_noise_y=sim_res$t_noise)
   )
 }
-
-randomized_iv_crit_vals=function(study,frm,N_vars,range,sims=1000){
-  ########make table of randomized values  
-  out_iv=list()
-  
-  for (i in 1:N_vars){
-    n_var=i
-    x_iv=iv_randomize(study,frm,var_num=n_var,
-                      Range_Search=range,poly_degree=2,kappa=0.5,nSim=sims)
-    x_output=x_iv$Output_IV
-    out_iv[[i]]=x_output
-  }
-  
-  out_iv=plyr::ldply(out_iv)
-  return(out_iv)
-}
-
-
-###########note: input here is df, not list
-make_iv_model=function(eqn,rand_est){
-  # Generate model summary output for randomized results for modelsummary
-  # eqn is estimated eqn
-  # rand_est is return from randomize summary
-  a1=str_replace_all(c(eqn),"\\+",",")
-  a2=str_split(a1,"\\~")[[1]][2]
-  a3=str_split(a2,",")[[1]]
-  a3=a3[1:nrow(rand_est)]
-  
-  ti <- data.frame(
-    term = a3,
-    estimate = rand_est$coefficient,
-    std.error=rand_est$se_orig,
-    random.std.error = apply(cbind(rand_est$se_exact_y,    #include original SE in case exact p=0
-                                   rand_est$se_orig),
-                             1,max)
-  )
-  
-  gl <- data.frame(
-    N=rand_est$N[1],
-    Moran_p = rand_est$Moran[1],
-    Weak_Instruments = rand_est$Weak_Instruments[1],
-    Wu_Hausman = rand_est$Wu_Hausman[1],
-    Sargan = rand_est$Sargan[1]
-  )
-  
-  mod <- list(
-    tidy = ti,
-    glance = gl)
-  class(mod) <- "modelsummary_list"
-  return(mod)
-}
-
-
 
